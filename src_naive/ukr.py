@@ -282,7 +282,7 @@ if __name__ == '__main__':
     ylim = ax.get_ylim()
     plt.legend(loc='best')
 
-    # estimate density
+    # visualize density
     XX, YY = np.meshgrid(
             np.linspace(xlim[0], xlim[1], 200),
             np.linspace(ylim[0], ylim[1], 200))

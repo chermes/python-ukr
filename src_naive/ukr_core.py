@@ -12,7 +12,7 @@ import numpy as np
 from scipy.spatial import distance
 
 
-def zero_out_diag(M, lko):
+def zero_out_diag(M, lko, band=None):
     """Zero out a diagonal band of the matrix `M` defined by `lko`.
 
     Notes
@@ -20,10 +20,13 @@ def zero_out_diag(M, lko):
     The input matrix M is changed!
     """
     if lko >= 0:
-        for k_ in np.arange(-lko, lko+1):
-            M = M - np.diag(np.diagonal(M, k_), k_)
+        if band is None:
+            band = np.ones(M.shape, dtype=bool)
+            band[np.triu_indices_from(band, lko)] = False
+            band[np.tril_indices_from(band, -lko)] = False
+        M[band] = 0
 
-    return M
+    return M, band
 
 
 def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric='L2'):
@@ -71,7 +74,7 @@ def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric='L2'):
         D = distance.cdist(Y_model, Y, 'cityblock')**2
 
     # LOO CV: zero out the diagonal elements
-    K = zero_out_diag(k(D), diagK)
+    K, band = zero_out_diag(k(D), diagK)
 
     Bsum = K.sum(axis=0)
     if bNorm:
@@ -80,7 +83,7 @@ def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric='L2'):
     else:
         B = K
 
-    K_der = zero_out_diag(k_der(D), diagK)
+    K_der, _ = zero_out_diag(k_der(D), diagK, band)
     if bNorm:
         P = -2. * K_der / Bsum
     else:
