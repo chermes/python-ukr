@@ -248,7 +248,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     import itertools
 
-    ds_name = 'digits' # {iris, digits}
+    ds_name = 'iris' # {iris, digits}
 
     if ds_name == 'iris':
         ds = datasets.load_iris()
