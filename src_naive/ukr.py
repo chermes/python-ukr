@@ -44,6 +44,8 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
     kernel : str or tuple(k : func(x), k_der : func(x))
         UKR kernel `k` and its derivative `k_der`. A few examples are included
         in this module: gaussian, quartic and student_{1,2,3,9}.
+    metric : {L1, L2}
+        Distance metric. L1: cityblock/manhattan; L2: euclidean
     n_iter : int
         Maximum number of iterations for training the UKR model.
     lko_cv : int
@@ -64,7 +66,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         Low-dimensional respresentation of `X`.
     """
 
-    def __init__(self, n_components=2, kernel=gaussian, lko_cv=1, n_iter=1000, embeddings=None, verbose=True):
+    def __init__(self, n_components=2, kernel=gaussian, metric='L2', lko_cv=1, n_iter=1000, embeddings=None, verbose=True):
         if isinstance(kernel, basestring):
             if kernel.lower() == 'gaussian':
                 self.k, self.k_der = gaussian
@@ -82,6 +84,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
             self.k, self.k_der = kernel
 
         self.n_components = n_components
+        self.metric = metric
         self.lko_cv = lko_cv
         self.n_iter = n_iter
         self.verbose = verbose
@@ -129,7 +132,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
 
             # optimze the scaling factor by using least squares
             def residuals(p, X_, Y_):
-                B, P = ukr_bp(Y_ * p, self.k, self.k_der, self.lko_cv)
+                B, P = ukr_bp(Y_ * p, self.k, self.k_der, self.lko_cv, metric=self.metric)
                 E = (X_ - ukr_project(X, B)).flatten()
                 return E
             p0 = np.ones((1,self.n_components))
@@ -137,7 +140,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
             Y_init_ = Y_init_ * plsq[0]
 
             # final projection error estimation
-            B, P = ukr_bp(Y_init_, self.k, self.k_der, self.lko_cv)
+            B, P = ukr_bp(Y_init_, self.k, self.k_der, self.lko_cv, metric=self.metric)
             err_ = ukr_E(X, B)
 
             if self.verbose:
@@ -165,7 +168,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
                 print 'UKR iter %5d, Err=%9.6f' % (iter, iRpropPlus.E_prev)
 
             # derivative of X_model w.r.t. to the error gradient
-            B, P = ukr_bp(Y, self.k, self.k_der, self.lko_cv)
+            B, P = ukr_bp(Y, self.k, self.k_der, self.lko_cv, metric=self.metric)
             dY = ukr_dY(Y, X, B, P)
 
             # reconstruction error
@@ -214,7 +217,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         assert Y.shape[1] == self.n_components, \
                 "failed condition: Y.shape[1] == self.n_components"
 
-        B, _ = ukr_bp(self.Y, self.k, self.k_der, diagK=-1, Y=Y)
+        B, _ = ukr_bp(self.Y, self.k, self.k_der, diagK=-1, Y=Y, metric=self.metric)
         return ukr_project(self.X, B)
 
     def predict_proba(self, Y):
@@ -234,47 +237,61 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         assert Y.shape[1] == self.n_components, \
                 "failed condition: Y.shape[1] == self.n_components"
 
-        B, _ = ukr_bp(self.Y, self.k, self.k_der, diagK=-1, Y=Y, bNorm=False)
+        B, _ = ukr_bp(self.Y, self.k, self.k_der, diagK=-1, Y=Y, bNorm=False, metric=self.metric)
         return B.mean(axis=0)
 
     pass
 
 
 if __name__ == '__main__':
+    from datetime import datetime
     import matplotlib.pyplot as plt
     import itertools
 
-    iris = datasets.load_iris()
-    X = iris.data
-    # make each column equal to the Euclidean distance metric
-    X = (X - X.mean(axis=0)) / X.std(axis=0)
-    y = iris.target
-    q = 2
-    kernel = student_2
-    lko_cv = 4
-    max_iter = 2000
+    ds_name = 'digits' # {iris, digits}
 
-    u = UKR(n_components=q, kernel=kernel, n_iter=max_iter, lko_cv=lko_cv)
+    if ds_name == 'iris':
+        ds = datasets.load_iris()
+        X = ds.data
+        # make each column equal to the distance metric
+        X = (X - X.mean(axis=0)) / X.std(axis=0)
+
+        lko_cv = 3
+        max_iter = 3000
+    elif ds_name == 'digits':
+        ds = datasets.load_digits(n_class=10)
+        X = ds.data
+
+        lko_cv = 10
+        max_iter = 20000
+    y = ds.target
+    q = 2
+    kernel = student_3
+
+    u = UKR(n_components=q, kernel=kernel, n_iter=max_iter, lko_cv=lko_cv, metric='L2')
     mani = u.fit_transform(X)
 
-    f = plt.figure(1)
+    f = plt.figure(1, figsize=(8*3,5*3))
 
     ax = f.add_subplot(121)
-    clrs = itertools.cycle('rgbmkc')
+    clrs = itertools.cycle('rgbcykm')
     mrks = itertools.cycle('.x+')
     for y_ in np.unique(y):
-        ax.plot(mani[y==y_,0], mani[y==y_,1], clrs.next() + mrks.next())
+        ax.plot(mani[y==y_,0], mani[y==y_,1], clrs.next() + mrks.next(), label=str(ds.target_names[y_]))
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
+    plt.legend(loc='best')
 
     # estimate density
     XX, YY = np.meshgrid(
-            np.linspace(xlim[0], xlim[1], 150),
-            np.linspace(ylim[0], ylim[1], 150))
+            np.linspace(xlim[0], xlim[1], 200),
+            np.linspace(ylim[0], ylim[1], 200))
     dens = u.predict_proba(np.c_[XX.flatten(), YY.flatten()]).reshape(XX.shape)
 
     ax = f.add_subplot(122)
     ax.plot(mani[:,0], mani[:,1], 'g.')
-    ax.contour(XX, YY, dens, 10)
+    ax.contour(XX, YY, np.log(dens + 1), 15)
 
-    plt.show()
+    ## plt.show()
+    tm = datetime.now().strftime('%y%m%d_%H%M%S_%f')[:-3]
+    plt.savefig('ukr_%s_%s.png' % (ds_name, tm), bbox_inches='tight')
