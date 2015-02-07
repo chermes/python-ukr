@@ -10,10 +10,11 @@ Created on Januar 16, 2015  18:48:22
 import numpy as np
 from scipy.optimize import leastsq
 import sklearn
-from sklearn import datasets, decomposition
+from sklearn import decomposition, manifold
 
 # own modules
-from ukr_core import ukr_bp, ukr_dY, ukr_E, ukr_project
+from ukr_core import (ukr_bp, ukr_dY, ukr_E, ukr_project,
+        ukr_backproject_particles)
 import rprop
 
 
@@ -44,17 +45,22 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
     kernel : str or tuple(k : func(x), k_der : func(x))
         UKR kernel `k` and its derivative `k_der`. A few examples are included
         in this module: gaussian, quartic and student_{1,2,3,9}.
-    metric : {L1, L2}
-        Distance metric. L1: cityblock/manhattan; L2: euclidean
+    metric : {L1, L2} or float
+        Distance metric.
+        L1: cityblock/manhattan; L2: euclidean
+        float : arbitrary Minkowsky
     n_iter : int
         Maximum number of iterations for training the UKR model.
     lko_cv : int
         Leave-k-out cross validation for training the UKR model.
     embeddings : list of initial manifold generators
-        If None, the initial embedding is set to sklean.decomposition.PCA
-        Other good choices are:
+        If None, the initial embedding is set to PCA and MDS.
+        Good choices are:
         * sklean.decomposition.PCA(`n_components`)
+        * sklean.decomposition.KernelPCA(`n_components`, kernel='rbf')
         * sklearn.manifold.locally_linear.LocallyLinearEmbedding(n_neighbors, `n_components`, method='modified')
+        * sklearn.manifold.MDS(n_components=`n_components`, n_jobs=-1),
+        * sklearn.manifold.TSNE(n_components=`n_components`),
     verbose : bool
         Print additional information esp. during the training stage.
 
@@ -83,14 +89,25 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         else:
             self.k, self.k_der = kernel
 
+        if isinstance(metric, basestring):
+            assert metric in ['L1', 'L2'], "failed condition: metric in ['L1', 'L2']"
+            if metric == 'L1': self.metric = 1.
+            elif metric == 'L2': self.metric = 2.
+        else:
+            self.metric = metric
+
         self.n_components = n_components
-        self.metric = metric
         self.lko_cv = lko_cv
         self.n_iter = n_iter
         self.verbose = verbose
 
         if embeddings is None:
-            self.embeddings = [decomposition.PCA(n_components=self.n_components)]
+            self.embeddings = [
+                    decomposition.PCA(n_components=self.n_components),
+                    ## decomposition.KernelPCA(n_components=self.n_components, kernel='poly'),
+                    manifold.MDS(n_components=self.n_components, n_jobs=-1),
+                    ## manifold.TSNE(n_components=self.n_components),
+                    ]
 
         self.X = None
         self.Y = None
@@ -114,7 +131,6 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         # find an initial embedding
 
         Y = None
-        ## B_ = None
         embed_ = None
         error = np.inf
 
@@ -128,7 +144,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
                 continue
 
             # normalize initial hypothesis to Y.T * Y = I
-            Y_init_ = (Y_init_ - Y_init_.mean(axis=0)) / Y_init_.std(axis=0)
+            Y_init_ = np.linalg.pinv(np.cov(Y_init_.T)).dot(Y_init_.T).T
 
             # optimze the scaling factor by using least squares
             def residuals(p, X_, Y_):
@@ -150,13 +166,11 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
             if err_ < error:
                 error = err_
                 Y = Y_init_
-                ## B_ = B
                 embed_ = embedding
 
         # Summary:
         if self.verbose:
-            print 'Using embedding', embed_.__class__.__name__
-            print ' Error: %f' % error
+            print '=> using embedding', embed_.__class__.__name__
 
         ######################
         # Refine the UKR model
@@ -168,7 +182,8 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
                 print 'UKR iter %5d, Err=%9.6f' % (iter, iRpropPlus.E_prev)
 
             # derivative of X_model w.r.t. to the error gradient
-            B, P = ukr_bp(Y, self.k, self.k_der, self.lko_cv, metric=self.metric)
+            B, P = ukr_bp(Y, self.k, self.k_der, self.lko_cv, metric=self.metric,
+                    exagg=[1., 4.][iter<self.n_iter/10])
             dY = ukr_dY(Y, X, B, P)
 
             # reconstruction error
@@ -176,6 +191,17 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
 
             Y = iRpropPlus.update(Y, dY, E_cur)
 
+            ## # re-organize embedded samples with low density: avoid local minima
+            ## # this also avoids vast outliers
+            ## if iter == self.n_iter * 1/4:
+                ## if self.verbose: print 'UKR: re-organize embedded samples'
+                ## part = .2
+                ## I = np.zeros((Y.shape[0],), dtype=bool)
+                ## I[np.random.permutation(range(Y.shape[0]))[:int(part * Y.shape[0])]] = True
+                ## Y[I] = ukr_backproject_particles(Y[~I], X[~I], self.k, self.k_der, self.metric, X[I],
+                        ## n_particles=100, n_iter=200)
+
+        # store training results
         self.X = X # original data
         self.Y = Y # manifold points
 
@@ -198,7 +224,22 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         return self.Y
 
     def transform(self, X):
-        raise NotImplementedError('To come.')
+        """Project each sample in `X` to the embedding.
+        Uses a particle set for the optimization.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape=(N,D)
+            Sample set with `N` elements and `D` dimensions.
+
+        Returns
+        -------
+        Y : np.ndarray, shape=(N, `n_components`)
+            Low-dimensional representation of `X`.
+        """
+        Y = ukr_backproject_particles(self.Y, self.X, self.k, self.k_der, self.metric, X,
+                n_particles=100, n_iter=200)
+        return Y
 
     def predict(self, Y):
         """Project a set of manifold points into the orignal space.
@@ -241,57 +282,3 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         return B.mean(axis=0)
 
     pass
-
-
-if __name__ == '__main__':
-    from datetime import datetime
-    import matplotlib.pyplot as plt
-    import itertools
-
-    ds_name = 'iris' # {iris, digits}
-
-    if ds_name == 'iris':
-        ds = datasets.load_iris()
-        X = ds.data
-        # make each column equal to the distance metric
-        X = (X - X.mean(axis=0)) / X.std(axis=0)
-
-        lko_cv = 3
-        max_iter = 3000
-    elif ds_name == 'digits':
-        ds = datasets.load_digits(n_class=10)
-        X = ds.data
-
-        lko_cv = 10
-        max_iter = 20000
-    y = ds.target
-    q = 2
-    kernel = student_3
-
-    u = UKR(n_components=q, kernel=kernel, n_iter=max_iter, lko_cv=lko_cv, metric='L2')
-    mani = u.fit_transform(X)
-
-    f = plt.figure(1, figsize=(8*3,5*3))
-
-    ax = f.add_subplot(121)
-    clrs = itertools.cycle('rgbcykm')
-    mrks = itertools.cycle('.x+')
-    for y_ in np.unique(y):
-        ax.plot(mani[y==y_,0], mani[y==y_,1], clrs.next() + mrks.next(), label=str(ds.target_names[y_]))
-    xlim = ax.get_xlim()
-    ylim = ax.get_ylim()
-    plt.legend(loc='best')
-
-    # visualize density
-    XX, YY = np.meshgrid(
-            np.linspace(xlim[0], xlim[1], 200),
-            np.linspace(ylim[0], ylim[1], 200))
-    dens = u.predict_proba(np.c_[XX.flatten(), YY.flatten()]).reshape(XX.shape)
-
-    ax = f.add_subplot(122)
-    ax.plot(mani[:,0], mani[:,1], 'g.')
-    ax.contour(XX, YY, np.log(dens + 1), 15)
-
-    ## plt.show()
-    tm = datetime.now().strftime('%y%m%d_%H%M%S_%f')[:-3]
-    plt.savefig('ukr_%s_%s.png' % (ds_name, tm), bbox_inches='tight')

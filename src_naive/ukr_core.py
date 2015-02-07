@@ -12,7 +12,7 @@ import numpy as np
 from scipy.spatial import distance
 
 
-def zero_out_diag(M, lko, band=None):
+def zero_out_diag(M, lko, zband=None):
     """Zero out a diagonal band of the matrix `M` defined by `lko`.
 
     Notes
@@ -20,16 +20,15 @@ def zero_out_diag(M, lko, band=None):
     The input matrix M is changed!
     """
     if lko >= 0:
-        if band is None:
-            band = np.ones(M.shape, dtype=bool)
-            band[np.triu_indices_from(band, lko)] = False
-            band[np.tril_indices_from(band, -lko)] = False
-        M[band] = 0
+        if zband is None:
+            zband = np.ones(M.shape, dtype=bool)
+            zband[np.triu_indices_from(zband, lko)] = False
+        M[~(zband[::-1,::-1] - zband)] = 0
 
-    return M, band
+    return M, zband
 
 
-def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric='L2'):
+def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric=2., exagg=1.):
     """Kernelized pairwise distances and its derivatives.
 
     Parameters
@@ -45,9 +44,11 @@ def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric='L2'):
         Project these manifold points to the original dimension. If None, the
         Y_model set is used.
     bNorm : bool
-        Normalize the kernel matrices?
-    metric : {L1, L2}
-        Distance metric.
+        Normalize the kernel matrices to column-wise sum=1?
+    metric : float
+        Distance coefficient of the Minkowsky metric.
+    exagg : float
+        Exaggeration factor for the distance matrix.
 
     Returns
     -------
@@ -58,23 +59,27 @@ def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric='L2'):
         Derivative of the kernelized distance matrix between the samples
         `Y_model` and `Y`.
     """
-    assert metric in ['L1', 'L2'], "failed condition: metric in ['L1', 'L2']"
 
     if Y is None:
         Y = Y_model
 
-    if metric == 'L2':
+    if np.abs(metric - 2) < 1e-5:
         # pairwise distances, sqared L2 norm: (Y_model - Y)^2
         Y1 = (Y_model**2).sum(axis=1)
         Y2 = (Y**2).sum(axis=1)
         D = ((-2. * Y_model.dot(Y.T) + Y2).T + Y1).T
-    elif metric == 'L1':
+    elif np.abs(metric - 1) < 1e-5:
         # squared L1 norm
         ## D = (Y_model[np.newaxis, :, :] - Y[:, np.newaxis, :]).sum(2)**2
         D = distance.cdist(Y_model, Y, 'cityblock')**2
+    else:
+        D = distance.cdist(Y_model, Y, 'minkowski', metric)**2
+    
+    D = D * exagg
 
+    K = k(D)
     # LOO CV: zero out the diagonal elements
-    K, band = zero_out_diag(k(D), diagK)
+    K, zband = zero_out_diag(K, diagK)
 
     Bsum = K.sum(axis=0)
     if bNorm:
@@ -83,7 +88,8 @@ def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric='L2'):
     else:
         B = K
 
-    K_der, _ = zero_out_diag(k_der(D), diagK, band)
+    K_der = k_der(D)
+    K_der, _ = zero_out_diag(K_der, diagK, zband)
     if bNorm:
         P = -2. * K_der / Bsum
     else:
@@ -120,3 +126,53 @@ def ukr_E(X, B):
 
 def ukr_project(X, B):
     return B.T.dot(X)
+
+
+def sus(fitness, nSel):
+    """Stochastic Universal sampling
+    # TODO: ref
+    """
+
+    I = np.argsort(fitness)[::-1]
+    C = np.cumsum(fitness[I])
+
+    F = float(fitness.sum())
+    P = F / nSel
+    r = np.random.rand() * P
+
+    idxs = np.array([I[np.nonzero(C >= r + P*i)[0][0]] for i in range(nSel)])
+
+    return idxs
+
+
+def ukr_backproject_particles(Y_model, X_model, k, k_der, metric, X, n_particles=100, n_iter=100):
+    """Project high-dimensional points `X` to the embedding using particles.
+    """
+    X = np.atleast_2d(X)
+    Y = np.zeros((X.shape[0], Y_model.shape[1]))
+
+    # for each sample X
+    for iX in range(X.shape[0]):
+        print 'UKR_core: optimize sample %d of %d' % (iX + 1, X.shape[0])
+        # init particle set PY
+        D = distance.cdist(X_model, [X[iX]], 'minkowski', metric).flatten()
+        PY = Y_model[np.argsort(D)[:n_particles]]
+
+        for j in range(n_iter):
+            # determine fitness `F` for each particle: reconstruction error
+            B, _ = ukr_bp(Y_model, k, k_der, Y=PY, metric=metric, bNorm=False)
+            occProb = (B.mean(axis=0) + 1e-10) # occurrence probability
+            B = B / (B.sum(axis=0) + 1e-10) # post-normalization
+            F = 1. / (np.sqrt(((ukr_project(X_model, B) - X[iX])**2).sum(axis=1)) + 1e-10)
+            F = F * occProb # down-weight particles outside the manifold
+
+            # select new particle set
+            PY = PY[sus(F, n_particles)]
+
+            # randomize particle set with linear annealing
+            PY = PY + np.random.randn(PY.shape[0], PY.shape[1]) * D.std() * float((n_iter - j) / n_iter)
+
+        # estimate final position
+        Y[iX] = np.median(PY, axis=0)
+
+    return Y
