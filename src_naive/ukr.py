@@ -127,10 +127,10 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
 
         if embeddings is None:
             self.embeddings = [
-                    decomposition.PCA(n_components=self.n_components),
+                    ## decomposition.PCA(n_components=self.n_components),
                     ## decomposition.KernelPCA(n_components=self.n_components, kernel='poly'),
-                    manifold.MDS(n_components=self.n_components, n_jobs=-1),
-                    ## manifold.TSNE(n_components=self.n_components),
+                    ## manifold.MDS(n_components=self.n_components, n_jobs=-1),
+                    manifold.TSNE(n_components=self.n_components),
                     ]
 
         self.X = None

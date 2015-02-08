@@ -54,16 +54,16 @@ if ds_name == 'iris':
     max_iter = 500
     metric = 2
 elif ds_name == 'digits':
-    ds = datasets.load_digits(n_class=4)
+    ds = datasets.load_digits(n_class=3)
     X = ds.data
 
     lko_cv = 1
-    max_iter = 2000
+    max_iter = (ds.target.max() + 1) * 1000
     metric = 'L2'
 y = ds.target
 q = 2
-kernel, kernel_s = ukr.gaussian, 'gaussian'
-## kernel, kernel_s = ukr.student_3, 'student_3'
+## kernel, kernel_s = ukr.gaussian, 'gaussian'
+kernel, kernel_s = ukr.student_3, 'student_3'
 
 tm = time.time()
 u = ukr.UKR(n_components=q, kernel=kernel, n_iter=max_iter, lko_cv=lko_cv, metric=metric)
@@ -73,7 +73,7 @@ print 'UKR training took %.2f seconds' % (time.time() - tm)
 f = plt.figure(1, figsize=(8*3,5*3))
 
 if q == 2:
-    ax = f.add_subplot(121)
+    ax = f.add_subplot(111)
     clrs = itertools.cycle('rgbcykm')
     mrks = itertools.cycle('.x+')
     for y_ in np.unique(y):
@@ -82,18 +82,30 @@ if q == 2:
     ylim = ax.get_ylim()
     plt.legend(loc='best')
 
-    # visualize density
-    try: # cope with non-UKR manifolds
-        XX, YY = np.meshgrid(
-                np.linspace(xlim[0], xlim[1], 200),
-                np.linspace(ylim[0], ylim[1], 200))
-        dens = u.predict_proba(np.c_[XX.flatten(), YY.flatten()]).reshape(XX.shape)
+    # visualize density and possibly the digits images, too
+    nX, nY = 150, 150
+    XX, YY = np.meshgrid(
+            np.linspace(xlim[0], xlim[1], nX),
+            np.linspace(ylim[0], ylim[1], nY))
+    dens = u.predict_proba(np.c_[XX.flatten(), YY.flatten()])
+    ax.contour(XX, YY, np.log2(dens.reshape(XX.shape) + 1), 15, alpha=.3)
+    ax.axis('equal')
 
-        ax = f.add_subplot(122)
-        ax.plot(mani[:,0], mani[:,1], 'g.')
-        ax.contour(XX, YY, np.log(dens + 1), 15)
-    except AttributeError:
-        pass
+    # visualize the image patch space, if possible
+    if ds_name == 'digits':
+        patches_ = u.predict(np.c_[XX.flatten(), YY.flatten()])
+        patches = [p.reshape(ds.images[0].shape) * d for p,d in zip(patches_, dens)]
+
+        oS = ds.images[0].shape
+        img = np.zeros((oS[0] * nY + 1, oS[1] * nX + 1))
+        for i in range(nY):
+            iy = nY * oS[0] - (oS[0] * i) - oS[0] # reversed
+            for j in range(nX):
+                ix = oS[1] * j
+                img[iy:iy + oS[0], ix:ix + oS[1]] = patches[i * nY + j].reshape(oS)
+
+        f = plt.figure(2, figsize=(8*3,5*3))
+        plt.imshow(img, interpolation='nearest', cmap=plt.cm.gray_r)
 
 elif q == 3:
     ax = Axes3D(f)
@@ -104,6 +116,3 @@ elif q == 3:
     plt.legend(loc='best')
 
 plt.show()
-## from datetime import datetime
-## tm = datetime.now().strftime('%y%m%d_%H%M%S_%f')[:-3]
-## plt.savefig('ukr_%s_%s_%s_%s_lko%02d.png' % (ds_name, tm, kernel_s, metric, lko_cv), bbox_inches='tight')
