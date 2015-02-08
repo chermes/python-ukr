@@ -41,7 +41,7 @@ def zero_out_diag(M, lko, zband=None):
 
     Notes
     -----
-    The input matrix M is changed!
+    The contents of the input matrix M will be changed!
     """
     if lko >= 0:
         if zband is None:
@@ -124,7 +124,25 @@ def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric=2., exagg=1.)
 
 
 def ukr_dY(Y_model, X, B, P):
-    """Derivatives of Y_model w.r.t. the reconstruction error gradient."""
+    """Derivatives of Y_model w.r.t. the reconstruction error gradient.
+
+    Parameters
+    ----------
+    Y_model : np.ndarray, shape=(N,q)
+        Support manifold points corresponding to N `Y` elements.
+    X : np.ndarray, shape=(N,D)
+        High-dimensional samples corresponding to `Y_model`.
+    B : np.ndarray, shape=(N,N)
+        Kernelized distance matrix between the samples `Y_model` and `Y`.
+        Normalized such that the columns sum to 1.
+    P : np.ndarray, shape=(N,N)
+        Derivative of the kernelized distance matrix between the samples
+        `Y_model` and `Y`.
+
+    Returns
+    -------
+    dY : np.ndarray, shape=(N,q)
+    """
 
     ## L = np.ones((Y_model.shape[0],1))
     ## n = Y_model.shape[0]
@@ -148,13 +166,29 @@ def ukr_E(X, B):
     return E
 
 
-def ukr_project(X, B):
-    return B.T.dot(X)
+def ukr_project(X_model, B):
+    """Project (new) manifold points in `B` to the high-dimensional space.
+    
+    Parameters
+    ----------
+    X_model : np.ndarray, shape=(N,D)
+        High-dimensional model samples corresponding.
+    B : np.ndarray, shape=(M,N)
+        Kernelized distance matrix between the samples `Y_model` and `Y`.
+        Normalized such that the columns sum to 1.
+
+    Returns
+    -------
+    X : np.ndarray, shape=(M,D)
+        New high-dimensional sample set.
+    """
+    return B.T.dot(X_model)
 
 
 def sus(fitness, nSel):
-    """Stochastic Universal sampling
-    # TODO: ref
+    """Stochastic Universal sampling.
+    
+    Select `nSel` samples from the given fitness values without sampling bias.
     """
 
     I = np.argsort(fitness)[::-1]
@@ -170,7 +204,31 @@ def sus(fitness, nSel):
 
 
 def ukr_backproject_particles(Y_model, X_model, k, k_der, metric, X, n_particles=100, n_iter=100):
-    """Project high-dimensional points `X` to the embedding using particles.
+    """Project high-dimensional points `X` to the embedding.
+    This is only possible in an approximate fashion, here using a
+    Condensation-like algorithm.
+
+    Parameters
+    ----------
+    Y_model : np.ndarray, shape=(N,q)
+        Support manifold points corresponding to N `Y` elements.
+    X_model : np.ndarray, shape=(N,D)
+        High-dimensional model samples corresponding to `Y_model`.
+    k, k_der : func(x)
+        Kernel and its derivative.
+    metric : float
+        Distance coefficient of the Minkowsky metric.
+    X : np.ndarray, shape=(M,D)
+        High-dimensional model samples to project back to the manifold.
+    n_particles : int
+        Number of particles used for the projection.
+    n_iter : int
+        Number of iterations in the particle setup.
+
+    Returns
+    -------
+    Y : np.ndarray, shape=(M,q)
+        Manifold points of `X`.
     """
     X = np.atleast_2d(X)
     Y = np.zeros((X.shape[0], Y_model.shape[1]))
