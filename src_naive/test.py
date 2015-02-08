@@ -55,7 +55,7 @@ if ds_name == 'iris':
     metric = 2
 elif ds_name == 'digits':
     ds = datasets.load_digits(n_class=3)
-    X = ds.data
+    X = ds.data.clip(0, 1)
 
     lko_cv = 1
     max_iter = (ds.target.max() + 1) * 1000
