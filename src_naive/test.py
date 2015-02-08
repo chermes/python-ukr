@@ -55,7 +55,7 @@ if ds_name == 'iris':
     metric = 2
 elif ds_name == 'digits':
     ds = datasets.load_digits(n_class=3)
-    X = ds.data.clip(0, 1)
+    X = ds.data
 
     lko_cv = 1
     max_iter = (ds.target.max() + 1) * 1000
@@ -83,7 +83,7 @@ if q == 2:
     plt.legend(loc='best')
 
     # visualize density and possibly the digits images, too
-    nX, nY = 150, 150
+    nX, nY = 200, 200
     XX, YY = np.meshgrid(
             np.linspace(xlim[0], xlim[1], nX),
             np.linspace(ylim[0], ylim[1], nY))
