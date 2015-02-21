@@ -132,6 +132,8 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
                     ## manifold.MDS(n_components=self.n_components, n_jobs=-1),
                     manifold.TSNE(n_components=self.n_components),
                     ]
+        else:
+            self.embeddings = embeddings
 
         self.X = None
         self.Y = None
@@ -206,8 +208,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
                 print 'UKR iter %5d, Err=%9.6f' % (iter, iRpropPlus.E_prev)
 
             # derivative of X_model w.r.t. to the error gradient
-            B, P = ukr_bp(Y, self.k, self.k_der, self.lko_cv, metric=self.metric,
-                    exagg=[1., 4.][iter<self.n_iter/10])
+            B, P = ukr_bp(Y, self.k, self.k_der, self.lko_cv, metric=self.metric)
             dY = ukr_dY(Y, X, B, P)
 
             # reconstruction error
