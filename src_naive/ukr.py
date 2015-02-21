@@ -35,6 +35,7 @@ import numpy as np
 from scipy.optimize import leastsq
 import sklearn
 from sklearn import decomposition, manifold
+from scipy.linalg import sqrtm
 
 # own modules
 from ukr_core import (ukr_bp, ukr_dY, ukr_E, ukr_project,
@@ -81,8 +82,8 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         If None, the initial embedding is set to TSNE and then PCA (if TSNE is
         not available).
         Good choices are:
-        * sklean.decomposition.PCA(`n_components`)
-        * sklean.decomposition.KernelPCA(`n_components`, kernel='rbf')
+        * sklearn.decomposition.PCA(`n_components`)
+        * sklearn.decomposition.KernelPCA(`n_components`, kernel='rbf')
         * sklearn.manifold.locally_linear.LocallyLinearEmbedding(n_neighbors, `n_components`, method='modified')
         * sklearn.manifold.MDS(n_components=`n_components`, n_jobs=-1),
         * sklearn.manifold.TSNE(n_components=`n_components`),
@@ -170,7 +171,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
                 continue
 
             # normalize initial hypothesis to Y.T * Y = I
-            Y_init_ = np.linalg.pinv(np.cov(Y_init_.T)).dot(Y_init_.T).T
+            Y_init_ = Y_init_.dot(np.linalg.pinv(sqrtm(Y_init_.T.dot(Y_init_))))
 
             # optimze the scaling factor by using least squares
             def residuals(p, X_, Y_):
