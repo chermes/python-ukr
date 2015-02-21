@@ -78,7 +78,8 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
     lko_cv : int
         Leave-k-out cross validation for training the UKR model.
     embeddings : list of initial manifold generators
-        If None, the initial embedding is set to PCA and MDS.
+        If None, the initial embedding is set to TSNE and then PCA (if TSNE is
+        not available).
         Good choices are:
         * sklean.decomposition.PCA(`n_components`)
         * sklean.decomposition.KernelPCA(`n_components`, kernel='rbf')
@@ -126,12 +127,11 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         self.verbose = verbose
 
         if embeddings is None:
-            self.embeddings = [
-                    ## decomposition.PCA(n_components=self.n_components),
-                    ## decomposition.KernelPCA(n_components=self.n_components, kernel='poly'),
-                    ## manifold.MDS(n_components=self.n_components, n_jobs=-1),
-                    manifold.TSNE(n_components=self.n_components),
-                    ]
+            try:
+                self.embeddings = [manifold.TSNE(n_components=self.n_components)]
+            except AttributeError:
+                print 'ukr.py::Warning: TSNE not found in the sklearn packages. Try PCA instead.'
+                self.embeddings = [decomposition.PCA(n_components=self.n_components)]
         else:
             self.embeddings = embeddings
 

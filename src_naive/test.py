@@ -42,7 +42,7 @@ from sklearn import datasets
 import ukr
 
 
-ds_name = ['iris', 'digits'][1]
+ds_name = ['iris', 'digits'][0]
 
 if ds_name == 'iris':
     ds = datasets.load_iris()
