@@ -103,7 +103,7 @@ def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric=2., exagg=1.)
 
     K = k(D)
     # LOO CV: zero out the diagonal elements
-    K, zband = zero_out_diag(K, diagK)
+    K, _ = zero_out_diag(K, diagK)
 
     Bsum = K.sum(axis=0)
     if bNorm:
@@ -113,12 +113,10 @@ def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric=2., exagg=1.)
         B = K
 
     K_der = k_der(D)
-    K_der, _ = zero_out_diag(K_der, diagK, zband)
     if bNorm:
         P = -2. * K_der / Bsum
     else:
         P = -2. * K_der
-    ## P[np.abs(P)<1e-16] = 0.
 
     return B, P
 

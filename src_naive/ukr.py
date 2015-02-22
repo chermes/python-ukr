@@ -32,7 +32,7 @@ SOFTWARE.
 
 """
 import numpy as np
-from scipy.optimize import leastsq
+from scipy.optimize import minimize
 import sklearn
 from sklearn import decomposition, manifold
 from scipy.linalg import sqrtm
@@ -58,6 +58,7 @@ student_1 = (lambda x: student_n[0](x, 1), lambda x: student_n[1](x, 1))
 student_2 = (lambda x: student_n[0](x, 2), lambda x: student_n[1](x, 2))
 student_3 = (lambda x: student_n[0](x, 3), lambda x: student_n[1](x, 3))
 student_9 = (lambda x: student_n[0](x, 9), lambda x: student_n[1](x, 9))
+student_k = lambda k: (lambda x: student_n[0](x, k), lambda x: student_n[1](x, k))
 
 
 class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
@@ -87,6 +88,10 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         * sklearn.manifold.locally_linear.LocallyLinearEmbedding(n_neighbors, `n_components`, method='modified')
         * sklearn.manifold.MDS(n_components=`n_components`, n_jobs=-1),
         * sklearn.manifold.TSNE(n_components=`n_components`),
+    enforceCycle : bool
+        Are the high-dimensional points sampled from a cyclic data, e.g. a
+        rotating object or a walking person? In this case the UKR tries to
+        maintain a close spatial distance of subsequent manifold points.
     verbose : bool
         Print additional information esp. during the training stage.
 
@@ -98,7 +103,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         Low-dimensional respresentation of `X`.
     """
 
-    def __init__(self, n_components=2, kernel=gaussian, metric='L2', lko_cv=1, n_iter=1000, embeddings=None, verbose=True):
+    def __init__(self, n_components=2, kernel=gaussian, metric='L2', lko_cv=1, n_iter=1000, embeddings=None, enforceCycle=False, verbose=True):
         if isinstance(kernel, basestring):
             if kernel.lower() == 'gaussian':
                 self.k, self.k_der = gaussian
@@ -125,6 +130,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         self.n_components = n_components
         self.lko_cv = lko_cv
         self.n_iter = n_iter
+        self.enforceCycle = enforceCycle
         self.verbose = verbose
 
         if embeddings is None:
@@ -167,6 +173,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
 
             try:
                 Y_init_ = embedding.fit_transform(X)
+                Y_init_ = Y_init_ - Y_init_.mean(axis=0) # center around zero
             except:
                 continue
 
@@ -176,11 +183,14 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
             # optimze the scaling factor by using least squares
             def residuals(p, X_, Y_):
                 B, P = ukr_bp(Y_ * p, self.k, self.k_der, self.lko_cv, metric=self.metric)
-                E = (X_ - ukr_project(X, B)).flatten()
-                return E
+                return ukr_E(X_, B)
             p0 = np.ones((1,self.n_components))
-            plsq = leastsq(residuals, p0, args=(X, Y_init_))
-            Y_init_ = Y_init_ * plsq[0]
+            sol = minimize(residuals, p0, method='Nelder-Mead', args=(X, Y_init_))
+            if sol['x'].max() < 1000:
+                Y_init_ = Y_init_ * sol['x']
+            else:
+                print 'UKR::warning: scaling initialization failed'
+                Y_init_ = Y_init_ * 20
 
             # final projection error estimation
             B, P = ukr_bp(Y_init_, self.k, self.k_der, self.lko_cv, metric=self.metric)
@@ -210,22 +220,17 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
 
             # derivative of X_model w.r.t. to the error gradient
             B, P = ukr_bp(Y, self.k, self.k_der, self.lko_cv, metric=self.metric)
-            dY = ukr_dY(Y, X, B, P)
+            if self.enforceCycle and iter % 20 < 10 and iter < self.n_iter/2:
+                # close spatial distance of subsequent manifold points every
+                # ten iterations for the first half of the full training
+                dY = -np.diff(np.vstack([Y, Y[0]]), axis=0)
+            else:
+                dY = ukr_dY(Y, X, B, P)
 
             # reconstruction error
-            E_cur = ukr_E(X, B)
+            E_cur = ukr_E(X, B) / X.shape[1]
 
             Y = iRpropPlus.update(Y, dY, E_cur)
-
-            ## # re-organize embedded samples with low density: avoid local minima
-            ## # this also avoids vast outliers
-            ## if iter == self.n_iter * 1/4:
-                ## if self.verbose: print 'UKR: re-organize embedded samples'
-                ## part = .2
-                ## I = np.zeros((Y.shape[0],), dtype=bool)
-                ## I[np.random.permutation(range(Y.shape[0]))[:int(part * Y.shape[0])]] = True
-                ## Y[I] = ukr_backproject_particles(Y[~I], X[~I], self.k, self.k_der, self.metric, X[I],
-                        ## n_particles=100, n_iter=200)
 
         # store training results
         self.X = X # original data

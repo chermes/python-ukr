@@ -94,7 +94,7 @@ if q == 2:
     # visualize the image patch space, if possible
     if ds_name == 'digits':
         patches_ = u.predict(np.c_[XX.flatten(), YY.flatten()])
-        patches = [p.reshape(ds.images[0].shape) * d for p,d in zip(patches_, dens)]
+        patches = [p.reshape(ds.images[0].shape) * np.log(d+1) for p,d in zip(patches_, dens)]
 
         oS = ds.images[0].shape
         img = np.zeros((oS[0] * nY + 1, oS[1] * nX + 1))

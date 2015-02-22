@@ -58,7 +58,7 @@ class iRpropPlus:
     Proceedings of the Second International Symposium on Neural Computation, 2000
     """
 
-    def __init__(self, eta_p=1.2, eta_m=.7, eta_max=50, eta_min=1e-6, dR_init=0.02, verbose=0):
+    def __init__(self, eta_p=1.2, eta_m=.7, eta_max=50, eta_min=0., dR_init=0.01, verbose=0):
         self.eta_p = eta_p
         self.eta_m = eta_m
         self.eta_max = eta_max
@@ -121,6 +121,12 @@ class iRpropPlus:
 
         return X
 
+    def max_change(self):
+        """Returns the maximum change in the current iteration.
+        Useful for stopping the optimization.
+        """
+        return np.abs(self.dR_1).max()
+
     pass
 
 
@@ -162,5 +168,3 @@ if __name__ == '__main__':
     plt.plot(X_coll[:,0], X_coll[:,1], 'b.')
     plt.text(X_init[0], X_init[1], 'start')
     plt.show()
-
-    import IPython; IPython.embed()
