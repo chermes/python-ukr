@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-UKR test.
+UKR test with a subset of the MNIST digits data.
 
 Author: Christoph Hermes
 Created on Februar 07, 2015  18:50:36
@@ -31,6 +31,11 @@ SOFTWARE.
 
 """
 
+# make the UKR module visible to Python
+import os, sys
+lib_path = os.path.abspath(os.path.join('..', '..', 'src_naive'))
+sys.path.append(lib_path)
+
 import time
 import itertools
 
@@ -42,24 +47,13 @@ from sklearn import datasets
 import ukr
 
 
-ds_name = ['iris', 'digits'][0]
+# load the data into memory
+ds = datasets.load_digits(n_class=3)
+X = ds.data
 
-if ds_name == 'iris':
-    ds = datasets.load_iris()
-    X = ds.data
-    # make each column equal w.r.t. the distance metric
-    X = (X - X.mean(axis=0)) / X.std(axis=0)
-
-    lko_cv = 1
-    max_iter = 500
-    metric = 2
-elif ds_name == 'digits':
-    ds = datasets.load_digits(n_class=3)
-    X = ds.data
-
-    lko_cv = 1
-    max_iter = (ds.target.max() + 1) * 1000
-    metric = 'L2'
+lko_cv = 1
+max_iter = (ds.target.max() + 1) * 1000
+metric = 'L2'
 y = ds.target
 q = 2
 ## kernel, kernel_s = ukr.gaussian, 'gaussian'
@@ -91,21 +85,20 @@ if q == 2:
     ax.contour(XX, YY, np.log2(dens.reshape(XX.shape) + 1), 15, alpha=.3)
     ax.axis('equal')
 
-    # visualize the image patch space, if possible
-    if ds_name == 'digits':
-        patches_ = u.predict(np.c_[XX.flatten(), YY.flatten()])
-        patches = [p.reshape(ds.images[0].shape) * np.log(d+1) for p,d in zip(patches_, dens)]
+    # visualize the image patch space
+    patches_ = u.predict(np.c_[XX.flatten(), YY.flatten()])
+    patches = [p.reshape(ds.images[0].shape) * np.log(d+1) for p,d in zip(patches_, dens)]
 
-        oS = ds.images[0].shape
-        img = np.zeros((oS[0] * nY + 1, oS[1] * nX + 1))
-        for i in range(nY):
-            iy = nY * oS[0] - (oS[0] * i) - oS[0] # reversed
-            for j in range(nX):
-                ix = oS[1] * j
-                img[iy:iy + oS[0], ix:ix + oS[1]] = patches[i * nY + j].reshape(oS)
+    oS = ds.images[0].shape
+    img = np.zeros((oS[0] * nY + 1, oS[1] * nX + 1))
+    for i in range(nY):
+        iy = nY * oS[0] - (oS[0] * i) - oS[0] # reversed
+        for j in range(nX):
+            ix = oS[1] * j
+            img[iy:iy + oS[0], ix:ix + oS[1]] = patches[i * nY + j].reshape(oS)
 
-        f = plt.figure(2, figsize=(8*3,5*3))
-        plt.imshow(img, interpolation='nearest', cmap=plt.cm.gray_r)
+    f = plt.figure(2, figsize=(8*3,5*3))
+    plt.imshow(img, interpolation='nearest', cmap=plt.cm.gray_r)
 
 elif q == 3:
     ax = Axes3D(f)

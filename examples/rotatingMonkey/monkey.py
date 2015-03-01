@@ -32,6 +32,7 @@ SOFTWARE.
 
 """
 
+# make the UKR module visible to Python
 import os, sys
 lib_path = os.path.abspath(os.path.join('..', '..', 'src_naive'))
 sys.path.append(lib_path)

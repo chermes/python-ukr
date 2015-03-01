@@ -58,3 +58,4 @@ report/
 
 @eaDir
 Thumbs.db
+debug*.py
