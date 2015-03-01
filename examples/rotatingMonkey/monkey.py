@@ -56,7 +56,7 @@ for imgI, img in enumerate(D):
 N = X_raw.shape[0]
 
 initEmbed = sklearn.decomposition.PCA(3)
-model = ukr.UKR(n_components=3, kernel=ukr.student_k(3), n_iter=1000, embeddings=[initEmbed], metric=2, enforceCycle=True)
+model = ukr.UKR(n_components=3, kernel=ukr.student_k(2), n_iter=1000, embeddings=[initEmbed], metric=2, enforceCycle=True)
 mani = model.fit_transform(X_raw)
 
 f = plt.figure()
