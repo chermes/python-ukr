@@ -26,12 +26,12 @@ the bandwidth included.
 * Numpy
 * scikit-learn
 * Numexpr [optional]
-* Matplotlib [for tests]
+* Matplotlib [for examples]
 
 Note for Windows users: All packages are available in the WinPython (http://winpython.sourceforge.net/) distribution.
 
 ## Example
-See src\_naive/test.py.
+See examples directory.
 
 ## References
 
