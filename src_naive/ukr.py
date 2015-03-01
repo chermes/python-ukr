@@ -160,6 +160,8 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         -------
         UKR model object.
         """
+        X = np.atleast_2d(X)
+
         ###########################
         # find an initial embedding
 
@@ -251,6 +253,8 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         Y : np.ndarray, shape=(N, `n_components`)
             Low-dimensional representation of `X`.
         """
+        X = np.atleast_2d(X)
+
         self.fit(X, y)
         return self.Y
 
@@ -268,6 +272,8 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         Y : np.ndarray, shape=(N, `n_components`)
             Low-dimensional representation of `X`.
         """
+        X = np.atleast_2d(X)
+
         Y = ukr_backproject_particles(self.Y, self.X, self.k, self.k_der, self.metric, X,
                 n_particles=self.Y.shape[0], n_iter=n_particle_iter)
         return Y
@@ -286,6 +292,9 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
             Corresponding samples in the high-dimensional space.
         """
         assert self.Y is not None, "untrained UKR model"
+
+        Y = np.atleast_2d(Y)
+
         assert Y.shape[1] == self.n_components, \
                 "failed condition: Y.shape[1] == self.n_components"
 
@@ -306,6 +315,9 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
             Estimated density value for each sample.
         """
         assert self.Y is not None, "untrained UKR model"
+
+        Y = np.atleast_2d(Y)
+
         assert Y.shape[1] == self.n_components, \
                 "failed condition: Y.shape[1] == self.n_components"
 
