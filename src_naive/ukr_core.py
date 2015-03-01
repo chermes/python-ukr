@@ -107,7 +107,7 @@ def ukr_bp(Y_model, k, k_der, diagK=-1, Y=None, bNorm=True, metric=2., exagg=1.)
 
     Bsum = K.sum(axis=0)
     if bNorm:
-        Bsum[np.abs(Bsum)<1e-16] = 1e-16 # prevent zeros
+        Bsum[np.abs(Bsum)<1e-5] = 1e-5 # prevent numerical drift
         B = K / Bsum # normalize by the row-wise kernel sums
     else:
         B = K
@@ -237,22 +237,26 @@ def ukr_backproject_particles(Y_model, X_model, k, k_der, metric, X, n_particles
         # init particle set PY
         D = distance.cdist(X_model, [X[iX]], 'minkowski', metric).flatten()
         PY = Y_model[np.argsort(D)[:n_particles]]
+        F = np.ones((PY.shape[0],))
 
         for j in range(n_iter):
-            # determine fitness `F` for each particle: reconstruction error
-            B, _ = ukr_bp(Y_model, k, k_der, Y=PY, metric=metric, bNorm=False)
-            occProb = (B.mean(axis=0) + 1e-10) # occurrence probability
-            B = B / (B.sum(axis=0) + 1e-10) # post-normalization
-            F = 1. / (np.sqrt(((ukr_project(X_model, B) - X[iX])**2).sum(axis=1)) + 1e-10)
-            F = F * occProb # down-weight particles outside the manifold
 
             # select new particle set
             PY = PY[sus(F, n_particles)]
 
             # randomize particle set with linear annealing
-            PY = PY + np.random.randn(PY.shape[0], PY.shape[1]) * D.std() * float((n_iter - j) / n_iter)
+            distr = np.random.randn(PY.shape[0], PY.shape[1]) * .05 * float(n_iter - j) / n_iter
+            PY = PY + distr
+
+            # determine fitness `F` for each particle: reconstruction error
+            B, _ = ukr_bp(Y_model, k, k_der, Y=PY, metric=metric, bNorm=False)
+            ## occProb = (B.mean(axis=0) + 1e-10) # occurrence probability
+            B = B / (B.sum(axis=0) + 1e-10) # post-normalization
+            D = distance.cdist(ukr_project(X_model, B), [X[iX]], 'minkowski', metric).flatten()
+            F = 1. / (D + 1e-10)
+            ## F = F * occProb # down-weight particles outside the manifold
 
         # estimate final position
-        Y[iX] = np.median(PY, axis=0)
+        Y[iX] = PY[F.argmax()]
 
     return Y
