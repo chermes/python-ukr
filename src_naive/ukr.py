@@ -254,7 +254,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
         self.fit(X, y)
         return self.Y
 
-    def transform(self, X):
+    def transform(self, X, n_particle_iter=100):
         """Project each sample in `X` to the embedding.
         Uses a particle set for the optimization.
 
@@ -269,7 +269,7 @@ class UKR(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
             Low-dimensional representation of `X`.
         """
         Y = ukr_backproject_particles(self.Y, self.X, self.k, self.k_der, self.metric, X,
-                n_particles=100, n_iter=200)
+                n_particles=self.Y.shape[0], n_iter=n_particle_iter)
         return Y
 
     def predict(self, Y):
