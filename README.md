@@ -30,11 +30,27 @@ the bandwidth included.
 
 Note for Windows users: All packages are available in the WinPython (http://winpython.sourceforge.net/) distribution.
 
-## Example
+## Examples
+
+All following examples are included in the _examples_ directory.
+
+### Digits Manifold
+
+UKR test with a subset of the MNIST digits data.
+
+todo: show manifold
 
 ### Rotating Suzanne Head
 
+Generates, interpolates and visualizes the "monkey head" manifold. The head is
+the Blender mascot Suzanne rotating around each three-dimensional axis:
+
 ![Suzanne](images/monkey.gif)
+
+Puts all images in a single matrix and generates a 3D manifold from these
+images:
+
+todo: show manifold
 
 ## References
 
