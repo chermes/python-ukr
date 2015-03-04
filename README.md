@@ -31,7 +31,10 @@ the bandwidth included.
 Note for Windows users: All packages are available in the WinPython (http://winpython.sourceforge.net/) distribution.
 
 ## Example
-See examples directory.
+
+### Rotating Suzanne Head
+
+![Suzanne](images/monkey.gif)
 
 ## References
 
