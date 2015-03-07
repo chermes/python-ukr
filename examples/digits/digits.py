@@ -48,7 +48,7 @@ import ukr
 
 
 # load the data into memory
-ds = datasets.load_digits(n_class=3)
+ds = datasets.load_digits(n_class=6)
 X = ds.data
 
 lko_cv = 1
@@ -77,7 +77,7 @@ if q == 2:
     plt.legend(loc='best')
 
     # visualize density and possibly the digits images, too
-    nX, nY = 200, 200
+    nX, nY = 150, 150
     XX, YY = np.meshgrid(
             np.linspace(xlim[0], xlim[1], nX),
             np.linspace(ylim[0], ylim[1], nY))

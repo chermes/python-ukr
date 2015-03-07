@@ -36,9 +36,10 @@ All following examples are included in the _examples_ directory.
 
 ### Digits Manifold
 
-UKR test with a subset of the MNIST digits data.
+UKR test with a subset of the MNIST digits data. The contour lines visualize
+the density.
 
-todo: show manifold
+![Digits Manifold](images/digits_manifold.png)
 
 ### Rotating Suzanne Head
 
@@ -50,7 +51,7 @@ the Blender mascot Suzanne rotating around each three-dimensional axis:
 Puts all images in a single matrix and generates a 3D manifold from these
 images:
 
-todo: show manifold
+![Suzanne Manifold](images/monkeyManifold.gif)
 
 ## References
 
